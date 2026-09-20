@@ -1,13 +1,34 @@
-# Offline completion patch
+# Offline-Completion Patch
 
-Upstream: stella_vslam 0.7.0, `525231147319bcd31242f981078c36d9272727b4`.
+## Upstream target
 
-I added `system::wait_for_pending_work(timeout_seconds)` and small queue/active-worker state hooks in mapping and global optimization through `offline-drain.patch`. Upstream shutdown requests termination without guaranteeing that every queued keyframe has been processed, so I do not let the offline exporter skip the final loop-detection queue or export during map correction.
+- Engine: stella_vslam 0.7.0
+- Revision: `525231147319bcd31242f981078c36d9272727b4`
+- Patch: `offline-drain.patch`
 
-Call this method only after the last frame feed has returned, with no concurrent reset/feed/manual-loop requests. Mapping remains active until it has handed its processed keyframe to global optimization. Global work remains active across candidate detection and correction. A separate flag covers loop BA from **before thread launch to after optimize returns**, closing the thread-start race before its internal running flag becomes visible. Queue state and flags are read/written under their existing mutexes. The synchronization wait is 1 ms and is not tied to video timestamps. All wait time is included in native and server timings.
+## Purpose
 
-After drain succeeds, the runner shuts down and exports the engine's corrected TUM trajectory plus world landmarks. If the drain deadline expires, the job fails instead of exporting an apparently final map. The parent process deadline terminates hung workers.
+Upstream shutdown requests termination but does not guarantee that every queued keyframe has completed mapping and global-optimization work. Exporting immediately after the last frame can therefore omit final loop-detection work or capture a map while correction is still active.
 
-I did not use this patch to implement a substitute algorithm, alter optimization mathematics, or create provider-specific behavior. I preserve the upstream license notices and use the same patch on both providers. I inspected source-only patch compatibility locally; I require hosted native compilation, race/lifecycle tests, and a real loop-return demonstration for runtime evidence.
+The patch adds:
 
-The hosted build script runs `git apply --check` before applying the patch. Record upstream revision, patch SHA256 and source/build logs in benchmark provenance. Never replace the engine with an older version to make this API compile.
+- `system::wait_for_pending_work(timeout_seconds)`;
+- queue-state checks for mapping and global optimization;
+- active-worker state tracking; and
+- loop-bundle-adjustment state tracking from before thread launch until optimization returns.
+
+## Synchronization contract
+
+Call `wait_for_pending_work` only after the final frame feed returns and when no reset, feed, or manual-loop request can run concurrently. Mapping remains active until the processed keyframe has been handed to global optimization. Global work remains active throughout candidate detection and correction.
+
+Queue state and activity flags use their existing mutexes. The wait interval is 1 ms and is independent of video timestamps. All wait time is included in native and server processing measurements.
+
+After a successful drain, the runner shuts down and exports the corrected TUM trajectory and world landmarks. If the drain deadline expires, the job fails instead of exporting an apparently final map. The parent-process deadline remains responsible for terminating a hung native process.
+
+## Scope
+
+The patch does not replace the SLAM algorithm, alter optimization mathematics, or introduce provider-specific behavior. The same native source is used on Lightning AI and AWS, and upstream license notices are preserved.
+
+## Build and verification
+
+The hosted build script runs `git apply --check` before applying the patch. Benchmark provenance should record the upstream revision, patch SHA-256, build logs, and runtime evidence. Native compilation, lifecycle/race testing, and a real loop-return demonstration are required before treating the behavior as verified.

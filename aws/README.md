@@ -1,54 +1,58 @@
-# Deploy Assignment 2 on AWS
+# AWS Deployment Guide
 
-I designed this runbook to deploy both services to a single Ubuntu EC2 instance with Docker Compose. I use Nginx to serve the compiled React frontend and proxy `/api` to the private FastAPI/native-SLAM container.
+This runbook describes deployment of the complete frontend and backend to a single Ubuntu EC2 instance using Docker Compose. Nginx serves the compiled React frontend and proxies `/api` to the private FastAPI/native-SLAM container.
 
-## 1. Deployment architecture
+## Deployment status
+
+The AWS configuration is included as a portable deployment option. It is not presented as an already completed AWS deployment. Region, instance type, costs, public URL, and performance must be recorded from the actual AWS environment.
+
+## Architecture
 
 ```text
 Internet
-  └─ EC2 security group: 80/443 public, 22 restricted
-       └─ Nginx + React container (host 80)
-            └─ /api over the private Compose network
-                 └─ FastAPI + native stella_vslam container (8000, not published)
+  -> EC2 security group: 80/443 public; 22 restricted
+       -> Nginx + React container on host port 80
+            -> /api over the private Compose network
+                 -> FastAPI + native stella_vslam container on 8000
 ```
 
-I have prepared this as an AWS runbook; I am not claiming that I have already performed the AWS deployment. I will record the instance type, region, cost, public address, and performance from the actual account and host if I deploy there.
+Backend port 8000 is intentionally not published to the host. All browser traffic uses a single Nginx origin.
 
-## 2. Prerequisites and sizing
+## 1. Prerequisites and capacity planning
 
-For this deployment, I need:
+- AWS account with permission to create, inspect, stop, and terminate EC2 resources.
+- Ubuntu 22.04 or 24.04 LTS x86_64 EC2 instance.
+- Sufficient EBS storage for source, native compilation, Docker layers, and temporary uploads.
+- SSH key or another approved EC2 connection method.
+- Current Git repository or complete source package.
 
-- an AWS account with permission to create and terminate EC2 resources;
-- an Ubuntu 22.04 or 24.04 LTS x86_64 EC2 instance;
-- enough EBS space for source, native compilation, Docker layers, and uploaded videos;
-- an SSH key or another approved EC2 access method; and
-- the complete current source package or Git repository.
+The supplied Compose configuration allows the backend up to 4 CPUs and 6 GiB RAM and defines a bounded 3 GiB `/tmp` tmpfs. Actual tmpfs usage consumes memory. Instance selection should therefore be based on measured build and benchmark results, not only free-tier eligibility.
 
-Choose the instance from benchmark evidence. The current Compose backend limit is 4 CPUs and 6 GiB RAM, plus a bounded 3 GiB `/tmp` tmpfs whose used contents consume memory. Do not choose a small instance merely because it is free-tier eligible; native compilation and SLAM may exceed it. Review current EC2 pricing, public IPv4 charges, storage, transfer, quota, and budget alerts before launch.
+Review current EC2, EBS, public IPv4, and data-transfer pricing before launch. Configure a budget alert and define a shutdown/termination plan. AWS notes that running instances can incur charges while idle; see the official [EC2 launch documentation](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/LaunchingAndUsingInstances.html).
 
-AWS notes that running instances can incur charges even while idle and recommends terminating them when finished. See the official [EC2 launch guide](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/LaunchingAndUsingInstances.html).
+## 2. Launch the EC2 instance
 
-## 3. Create the EC2 instance
+Use the EC2 launch wizard to configure:
 
-In the EC2 console:
+1. Ubuntu LTS x86_64 AMI.
+2. Instance type supported by measured CPU and memory requirements.
+3. EBS capacity for source, Docker images, compilation, and temporary data.
+4. Public IPv4 address or Elastic IP when a stable endpoint is required.
+5. Approved SSH key or access mechanism.
 
-1. Select an Ubuntu LTS x86_64 AMI.
-2. Select an instance size supported by your measured CPU/RAM requirement.
-3. Allocate sufficient EBS storage for the source and image build.
-4. Enable a public IPv4 address or attach an Elastic IP if a stable address is required.
-5. Create or select a security group with these inbound rules:
+### Security-group ingress
 
 | Port | Source | Purpose |
 |---|---|---|
-| 22/TCP | Your administrator IP/CIDR only | SSH administration |
-| 80/TCP | `0.0.0.0/0` (and `::/0` if using IPv6) | HTTP application |
-| 443/TCP | `0.0.0.0/0` (and `::/0` if using IPv6) | HTTPS application |
+| 22/TCP | Administrator IP/CIDR only | SSH administration |
+| 80/TCP | `0.0.0.0/0`; optionally `::/0` | HTTP application |
+| 443/TCP | `0.0.0.0/0`; optionally `::/0` | HTTPS application |
 
-Do **not** open backend port 8000 publicly. AWS documents security groups as the instance's stateful virtual firewall and recommends restricting SSH to the administrator's network; see [security groups](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-security-groups.html) and [web-server rule examples](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/security-group-rules-reference.html).
+Do not expose port 8000. AWS documents security groups as stateful instance firewalls and recommends restricting SSH to an administrative network; see [EC2 security groups](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-security-groups.html) and [rule examples](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/security-group-rules-reference.html).
 
-## 4. Install Docker Engine and Compose
+## 3. Install Docker Engine and Compose
 
-Connect to the instance with SSH, then use Docker's official Ubuntu repository:
+Connect through SSH and install Docker from its official Ubuntu repository:
 
 ```bash
 sudo apt update
@@ -74,29 +78,25 @@ sudo systemctl status docker --no-pager
 sudo docker run --rm hello-world
 ```
 
-These commands follow Docker's current [Ubuntu installation documentation](https://docs.docker.com/engine/install/ubuntu/). Keep `sudo` on Docker commands unless the host owner deliberately configures another access model.
+These commands follow Docker's [Ubuntu installation guide](https://docs.docker.com/engine/install/ubuntu/). Retain `sudo` unless a reviewed alternative Docker access model is configured.
 
-## 5. Transfer the source
+## 4. Obtain the source
 
-Use Git, SCP, or SFTP to place the complete project on the instance. Never copy credentials, `.env` secrets, videos containing sensitive material, `node_modules`, local build output, or developer caches.
+Clone the public repository:
 
 ```bash
 cd /opt
-sudo mkdir -p monocular-sparse-slam
-sudo chown "$USER":"$USER" monocular-sparse-slam
-cd monocular-sparse-slam
-# Clone the repository here, or extract/copy the submitted source package here.
+sudo git clone \
+  https://github.com/Ayushman281/Monocular-Sparse-SLAM.git \
+  /opt/monocular-sparse-slam
+sudo chown -R "$USER":"$USER" /opt/monocular-sparse-slam
+cd /opt/monocular-sparse-slam
 ls backend frontend slam scripts docker-compose.yml
 ```
 
-If cloning a repository, replace the placeholder with its real URL:
+Alternatively, extract the submitted source package to `/opt/monocular-sparse-slam`. Do not copy credentials, private videos, `.env` files, `node_modules`, local build output, or developer caches.
 
-```bash
-git clone <YOUR_GIT_REPOSITORY_URL> /opt/monocular-sparse-slam
-cd /opt/monocular-sparse-slam
-```
-
-## 6. Configure the application
+## 5. Configure the application
 
 ```bash
 cd /opt/monocular-sparse-slam
@@ -105,11 +105,11 @@ sed -i 's/^EXECUTION_TARGET=.*/EXECUTION_TARGET=aws/' .env
 sed -i 's/^ENABLE_SLAM=.*/ENABLE_SLAM=true/' .env
 ```
 
-Review `.env` before building. The defaults accept videos up to 200 MB/30 seconds, process at up to 15 FPS and 640 pixels on the longest side, allow one active job, use two OpenMP threads, and retain results temporarily. Adjust limits only with capacity and benchmark evidence.
+Review `.env` before building. Defaults include a 200 MB upload limit, 30-second duration limit, 15 FPS processing target, 640-pixel longest-side bound, one active job, two OpenMP threads, and temporary result retention. Change these values only with capacity and benchmark evidence.
 
-## 7. Build and start both services
+## 6. Build and start the services
 
-The first build compiles the pinned native dependencies and can take several minutes.
+The first image build compiles pinned native dependencies and may take several minutes.
 
 ```bash
 cd /opt/monocular-sparse-slam
@@ -120,11 +120,15 @@ sudo docker compose ps
 sudo docker compose logs --tail=100
 ```
 
-The frontend is published on host port 80. The backend is reachable only through Nginx at `/api`.
+Expected topology:
 
-## 8. Verify the deployment
+- frontend/Nginx published on host port 80;
+- backend reachable only through Nginx `/api`; and
+- no host mapping for backend port 8000.
 
-On the EC2 host:
+## 7. Verify the deployment
+
+Run on the EC2 host:
 
 ```bash
 curl --fail http://127.0.0.1/api/health
@@ -132,29 +136,24 @@ curl --fail http://127.0.0.1/api/system
 sudo docker compose ps
 ```
 
-The health response must contain:
+Required health fields:
 
 ```json
 {"status":"healthy","slam_runner_available":true,"slam_enabled":true}
 ```
 
-From another computer, open:
+From an external computer, open:
 
 ```text
 http://<EC2-PUBLIC-IP-OR-DNS>/
 http://<EC2-PUBLIC-IP-OR-DNS>/api/health
 ```
 
-Then upload a real short RGB video and confirm that:
+Complete a real upload and verify visible landmarks, trajectory output, measured timing fields, and all three artifact downloads.
 
-- the job completes without an error;
-- landmarks and a trajectory appear;
-- measured processing fields are populated; and
-- all three downloads work.
+## 8. Performance benchmark
 
-## 9. Run the benchmark on AWS
-
-Keep the Compose application running and execute the benchmark from a Python environment containing the backend test requirements, or from an equivalent controlled client:
+Run the benchmark from a controlled Python client on the EC2 host while Compose remains active:
 
 ```bash
 cd /opt/monocular-sparse-slam
@@ -170,21 +169,24 @@ python scripts/benchmark.py \
   --runs 5
 ```
 
-Use `--official` only with a clean committed checkout and a qualifying clip. Record the EC2 instance type, region, AMI/OS, CPU, RAM, Docker version, image IDs, input hash, all run times, failures, and reconstruction statistics in [../benchmarks/benchmark_results.md](../benchmarks/benchmark_results.md).
+Use `--official` only with a clean committed checkout and a qualifying clip. Record the region, instance type, AMI/OS, CPU, RAM, Docker version, image IDs, container limits, input hash, individual runs, failures, and reconstruction statistics in [../benchmarks/benchmark_results.md](../benchmarks/benchmark_results.md).
 
-## 10. HTTPS and a domain
+## 9. HTTPS and domain configuration
 
-For a submission demo, a public IP/DNS address can prove reachability, but HTTP does not encrypt video uploads. For an Internet-facing deployment, point a domain to the instance and configure TLS using a reviewed approach such as an Application Load Balancer with AWS Certificate Manager, or Certbot with an Nginx configuration that survives container updates. Open port 443 and redirect port 80 only after the certificate is valid.
+Plain HTTP does not encrypt uploaded video. For an Internet-facing deployment, configure a domain and valid TLS certificate using a reviewed architecture such as:
 
-Do not claim an HTTPS deployment until it has been tested from an external network.
+- an Application Load Balancer with AWS Certificate Manager; or
+- Certbot with a persistent Nginx/TLS configuration.
 
-## 11. Operations
+Open port 443 and redirect port 80 only after certificate validation. Do not report HTTPS as complete until it has been tested from an external network.
+
+## 10. Operations
 
 ```bash
 # Follow logs
 sudo docker compose logs -f --tail=100
 
-# Restart both services
+# Restart services
 sudo docker compose restart
 
 # Rebuild after a source update
@@ -195,30 +197,30 @@ sudo docker compose up -d
 sudo docker compose down
 ```
 
-After a restart, in-memory jobs are lost; health and a real upload must be checked again. `docker compose down` does not stop EC2 billing. Stop or terminate unused instances and check for retained EBS volumes, snapshots, Elastic IPs, and other chargeable resources.
+In-memory jobs are lost on restart. Repeat health and real-video checks after any restart or rebuild. `docker compose down` does not stop EC2 billing; stop or terminate unused instances and review retained EBS volumes, snapshots, Elastic IPs, and other chargeable resources.
 
-## 12. Troubleshooting
+## Troubleshooting
 
-- **Native build is killed:** select a host with more memory or reduce build parallelism in the Docker build configuration.
-- **Frontend shows backend unavailable:** run `curl http://127.0.0.1/api/health`, inspect both container logs, and confirm the backend is healthy.
-- **Upload returns 413:** keep FastAPI's size limit and Nginx `client_max_body_size` consistent.
-- **Upload times out:** inspect backend timing/logs and size the EC2 instance from measured data rather than increasing timeouts blindly.
-- **Port 80 is unreachable:** confirm the container is healthy, EC2 security-group ingress allows HTTP, the subnet route reaches an Internet gateway, and the instance has a public address.
-- **Disk fills during builds:** inspect Docker disk use and EBS capacity; remove only known unused artifacts after verifying their targets.
+| Symptom | Resolution |
+|---|---|
+| Native build is terminated | Use a host with more memory or reduce native build parallelism |
+| Frontend reports backend unavailable | Check `/api/health`, both container logs, and backend health status |
+| Upload returns HTTP 413 | Keep FastAPI upload limits and Nginx `client_max_body_size` consistent |
+| Processing times out | Inspect preprocessing/native timing and resize the instance from measurement evidence |
+| Port 80 is unreachable | Check container health, security-group ingress, subnet routing, Internet gateway, and public addressing |
+| Build exhausts disk | Inspect Docker disk usage and EBS capacity before removing known unused artifacts |
 
-## Deployment record
-
-Complete this table on the actual AWS host:
+## Deployment evidence record
 
 | Field | Actual value |
 |---|---|
-| Date and source revision | Pending |
+| Deployment date and source revision | Pending |
 | AWS region / instance type / AMI | Pending |
 | vCPUs / RAM / EBS | Pending |
 | Docker and Compose versions | Pending |
-| Image IDs/digests | Pending |
+| Image IDs or digests | Pending |
 | Local health and real-video smoke test | Pending |
-| Five-run benchmark result | Pending |
-| Public URL and external-network test | Pending |
+| Five-run benchmark summary | Pending |
+| Public URL and external-network result | Pending |
 | HTTPS/domain status | Pending |
-| Stop/termination and residual-cost check | Pending |
+| Shutdown and residual-cost check | Pending |

@@ -1,9 +1,28 @@
-# Demonstration videos
+# Demonstration and Benchmark Videos
 
-I have not included real benchmark or loop-return footage in the repository. I do not add random points or synthetic geometry to imitate a successful demo.
+Video files are intentionally excluded from source control to avoid committing large or private media. Approved demonstration footage should be distributed as a separate submission asset when required.
 
-For `benchmark.mp4`, capture about 10 seconds of a static, textured, well-lit scene using a single RGB lens. Move slowly with meaningful translation. Avoid pure panning, digital zoom, abrupt exposure changes, moving people and motion blur. Keep source resolution/FPS and the original file for hashing. Use a camera calibration taken with the same lens/zoom/resolution/orientation if possible.
+## Benchmark clip
 
-For `loop-return.mp4`, begin at a distinctive scene, move through the environment and revisit the starting area with overlap. A physically valid revisit is necessary but does not guarantee accepted loop closure. Inspect actual loop edges and corrected map output. Record capture device/settings, consent/license, calibration provenance and original hash with benchmark evidence.
+Recommended properties for `benchmark.mp4`:
 
-I ignore videos in Git to prevent accidental inclusion of large or private footage. If required, I include an approved, shareable demonstration clip as a separate submission asset. I also keep potentially private calibration source images outside source control.
+- approximately 10 seconds long;
+- static, textured, and well-lit scene;
+- slow camera motion with meaningful translation;
+- fixed lens, zoom, resolution, and orientation; and
+- retained original file for hashing and provenance.
+
+Avoid pure panning, digital zoom, abrupt exposure changes, moving people, scene cuts, heavy stabilization, and motion blur. When available, use camera calibration captured with the same lens, zoom, resolution, and orientation.
+
+Record the capture device/settings, input SHA-256, duration, resolution, source FPS, calibration mode, processing settings, and license/consent status with the benchmark evidence.
+
+## Loop-return clip
+
+For `loop-return.mp4`, begin at a visually distinctive location, move through the environment, and revisit the starting area with sufficient overlap. A physical revisit is necessary but does not guarantee that the engine will accept a loop closure. Evaluate the actual loop-edge count and corrected trajectory/map output.
+
+## Data-integrity policy
+
+- Do not introduce synthetic points or trajectories as evidence of successful reconstruction.
+- Preserve unsuccessful or slow benchmark runs.
+- Keep private footage and calibration images outside source control.
+- Include only approved, shareable media in the final submission package.

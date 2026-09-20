@@ -1,162 +1,189 @@
-# Deploy Assignment 2 on Lightning AI
+# Lightning AI Deployment Guide
 
-I used this process to install, start, verify, and publish both the backend and frontend in a dedicated Lightning AI Studio. I have written it so that I—or an evaluator—can reproduce the deployment systematically.
+This runbook describes the reproducible deployment of Assignment 2 in a dedicated Lightning AI Studio. It covers native/backend installation, frontend installation, service startup, public exposure, validation, benchmarking, and restart procedures.
 
-**Recorded deployment URL:** [https://5173-01m2wsmqs3pv7fk47mnxtzqdr1.cloudspaces.litng.ai/](https://5173-01m2wsmqs3pv7fk47mnxtzqdr1.cloudspaces.litng.ai/)
+## Deployment summary
 
-Assignment 2 can use backend port **8000** and frontend port **5173** even if Assignment 1 uses the same port numbers. Each project is hosted in a different Studio, and Lightning generates different URLs for the Studio/port combination.
+| Item | Configuration |
+|---|---|
+| Public application | [Lightning AI frontend](https://5173-01m2wsmqs3pv7fk47mnxtzqdr1.cloudspaces.litng.ai/) |
+| Public port | 5173 |
+| Backend port | 8000, private within the Studio |
+| Frontend runtime | Compiled Vite application with `/api` proxy |
+| Backend runtime | FastAPI/Uvicorn plus native stella_vslam runner |
+| Python environment | Existing Lightning Conda environment; no nested venv |
+| Compute requirement | CPU; GPU is not required |
+
+Assignment 1 and Assignment 2 may use the same numeric ports because they run in separate Studios. Lightning generates a different public hostname for each Studio/port combination.
+
+## Service topology
+
+```text
+Public HTTPS URL
+  -> frontend on 0.0.0.0:5173
+       -> /api proxy to 127.0.0.1:8000
+            -> FastAPI backend
+                 -> native slam_runner and ORB vocabulary
+```
+
+Only port 5173 needs to be public. Keeping port 8000 private avoids a second public origin and eliminates frontend CORS configuration.
 
 ## 1. Prerequisites
 
-- A separate Lightning Studio for Assignment 2.
-- The complete current source tree—not only the older embedded Git bundle.
-- Python 3.11+ in the Studio's default Conda environment.
-- Enough memory and disk space to compile the native dependencies.
-- A short RGB test video for final end-to-end verification.
+- A dedicated Lightning Studio for Assignment 2.
+- The current GitHub repository or complete source package.
+- Python 3.11 or newer in the Studio Conda environment.
+- Sufficient memory and disk for native compilation.
+- A short monocular RGB video for end-to-end verification.
 
-My project is CPU-based, so I do not require a GPU. I review Studio credits, machine selection, persistence, auto-stop, and auto-start settings before leaving a service running.
+The Studio should contain the complete project structure because folder-local scripts reference shared files under `slam/`, `scripts/`, and `lightning/`.
 
-## 2. Confirm the project location
+## 2. Obtain the source
 
-Upload/extract the source or clone the current repository. Enter the directory containing `backend/`, `frontend/`, `slam/`, `scripts/`, and `lightning/`:
+Clone the repository:
 
 ```bash
-cd /teamspace/studios/this_studio/monocular-sparse-slam-source/monocular-sparse-slam
-pwd
+cd /teamspace/studios/this_studio
+git clone https://github.com/Ayushman281/Monocular-Sparse-SLAM.git
+cd Monocular-Sparse-SLAM
 ls backend frontend slam scripts lightning
 ```
 
-Do not run Assignment 2 commands from the Assignment 1 directory.
+If a source package is uploaded instead, adjust the path to the extracted directory and confirm that the same folders are present.
 
-## 3. Install and start the backend
+## 3. Backend installation and startup
 
 Open the first Studio terminal:
 
 ```bash
-cd /teamspace/studios/this_studio/monocular-sparse-slam-source/monocular-sparse-slam/backend
+cd /teamspace/studios/this_studio/Monocular-Sparse-SLAM/backend
 BUILD_JOBS=2 bash setup-lightning.sh
 ENABLE_SLAM=true bash run-lightning.sh
 ```
 
 Keep this terminal running. The API listens on `0.0.0.0:8000`.
 
-Backend setup performs the following work:
+### Backend setup responsibilities
 
-- installs the Ubuntu/Debian compiler, CMake, Ninja, FFmpeg, OpenCV, Eigen, SuiteSparse, yaml-cpp, SQLite, spdlog, and OpenGL/GLX development interface required by g2o's exported CMake package;
-- downloads pinned g2o, FBoW, and stella_vslam sources;
-- applies the documented offline-completion patch and builds the native runner;
+The setup script:
+
+- installs the C/C++ build toolchain, CMake, Ninja, FFmpeg, OpenCV, Eigen, SuiteSparse, yaml-cpp, SQLite, spdlog, and required OpenGL/GLX development interfaces;
+- retrieves the pinned g2o, FBoW, and stella_vslam sources;
+- applies the offline-completion patch and builds the native runner;
 - downloads the pinned FBoW ORB vocabulary; and
-- installs the locked Python application/test requirements into Lightning's existing Conda environment.
+- installs the locked Python application and test dependencies into the active Lightning Conda environment.
 
-Lightning Studios permit one environment, so these scripts intentionally do **not** create a nested Python virtual environment. If native compilation runs out of memory, rerun setup with `BUILD_JOBS=1`.
+Lightning Studios allow one managed environment, so the deployment scripts do not create a nested Python virtual environment. If native compilation exceeds available memory, rerun setup with one build job:
 
-For a later Python-only dependency refresh, run this from `backend/`:
+```bash
+BUILD_JOBS=1 bash setup-lightning.sh
+```
+
+For a Python-only dependency refresh after native installation:
 
 ```bash
 python -m pip install -r requirements-test.txt
 ```
 
-## 4. Check the backend locally
+## 4. Backend verification
 
-Open a second terminal while the backend remains running:
+From a second terminal:
 
 ```bash
 curl --fail http://127.0.0.1:8000/api/health
 curl --fail http://127.0.0.1:8000/api/system
 ```
 
-The important health fields are:
+Required health fields:
 
 ```json
 {"status":"healthy","slam_runner_available":true,"slam_enabled":true}
 ```
 
-`status: not_ready`, `slam_runner_available: false`, or `slam_enabled: false` means the application must not be submitted as ready.
+The deployment is not ready if `status` is `not_ready`, the runner is unavailable, or SLAM is disabled.
 
-## 5. Install and start the frontend
+## 5. Frontend installation and startup
 
 Use the second terminal:
 
 ```bash
-cd /teamspace/studios/this_studio/monocular-sparse-slam-source/monocular-sparse-slam/frontend
+cd /teamspace/studios/this_studio/Monocular-Sparse-SLAM/frontend
 bash setup-lightning.sh
 bash run-lightning.sh
 ```
 
-Keep this terminal running. The compiled frontend listens on `0.0.0.0:5173` and proxies relative `/api` requests to `127.0.0.1:8000`.
+Keep this terminal running. The frontend listens on `0.0.0.0:5173` and proxies `/api` to the backend on `127.0.0.1:8000`.
 
-Frontend setup selects Node 22.12 or newer, runs `npm ci`, checks TypeScript, and creates the hosted production build with `npm run build:hosted`. It does not install Python or compile native SLAM.
+The setup script selects Node.js 22.12 or newer, runs `npm ci`, performs the TypeScript check, and builds the hosted frontend with `npm run build:hosted`. It does not install Python packages or rebuild native SLAM.
 
-If Node is already suitable, the equivalent folder-local commands are:
+Equivalent commands when a compatible Node.js version is already active:
 
 ```bash
-cd /teamspace/studios/this_studio/monocular-sparse-slam-source/monocular-sparse-slam/frontend
+cd /teamspace/studios/this_studio/Monocular-Sparse-SLAM/frontend
 npm ci
 npm run build:hosted
 bash run-lightning.sh
 ```
 
-## 6. Verify the deployment
+## 6. Deployment verification
 
-From a third terminal, verify the backend directly and through the frontend proxy:
+Verify the API directly and through the frontend proxy:
 
 ```bash
 curl --fail http://127.0.0.1:8000/api/health
 curl --fail http://127.0.0.1:5173/api/health
 ```
 
-Both commands must return a healthy engine. The second proves that the same-origin frontend proxy can reach the private backend.
+Both requests must return the healthy response. The second request verifies the complete browser-to-frontend-to-backend route.
 
-Then open the Studio **Ports** tool:
+## 7. Publish the frontend
 
-1. Locate port **5173**.
-2. Set its visibility to **Public** or use the public-link control.
-3. Keep port **8000** private; the public frontend already proxies `/api`.
-4. Open the generated 5173 URL in an incognito/private browser window.
-5. Verify both the UI and `<PUBLIC_FRONTEND_URL>/api/health`.
+In the Studio interface:
 
-For this deployment, check:
+1. Open the **Ports** tool.
+2. Locate port **5173**.
+3. Set port 5173 to **Public** or enable its public-link control.
+4. Leave port 8000 private.
+5. Open the public URL in a private/incognito browser window.
+6. Verify the UI and the public `/api/health` endpoint.
+
+Deployment endpoints:
 
 ```text
 https://5173-01m2wsmqs3pv7fk47mnxtzqdr1.cloudspaces.litng.ai/
 https://5173-01m2wsmqs3pv7fk47mnxtzqdr1.cloudspaces.litng.ai/api/health
 ```
 
-An automated external check made while preparing this documentation received HTTP 502. If that continues, confirm that the Studio is awake, both terminals/processes are running, the two local curl commands pass, and port 5173 is public. A 502 is not a healthy submission result.
+If the public URL returns HTTP 502, confirm that the Studio is awake, both service terminals are still running, both local health requests pass, and port 5173 remains public. Lightning's [web-app hosting documentation](https://lightning.ai/docs/platform/build/host-web-apps) describes custom-port publication and auto-start behavior.
 
-Lightning's official [web-app hosting guide](https://lightning.ai/docs/platform/build/host-web-apps) confirms that custom apps can be shared through the Ports tool. Auto-start can reduce idle cost but introduces a cold-start delay.
+## 8. End-to-end reconstruction test
 
-## 7. Test a real reconstruction
+Use a 5-10 second video with steady translational motion through a static, textured, well-lit scene. Avoid pure rotation, strong blur, digital zoom, scene cuts, and heavy stabilization.
 
-Use a 5–10 second video with:
+Browser acceptance steps:
 
-- steady, slow movement;
-- sideways or forward translation, not only rotation;
-- a static, textured, well-lit scene; and
-- no digital zoom, scene cuts, or heavy stabilization.
+1. Select the video.
+2. Use calibrated camera parameters when available; otherwise retain the documented FOV approximation.
+3. Start reconstruction.
+4. Confirm that the job completes and the viewer displays landmarks and a camera path.
+5. Confirm that measured metrics are populated.
+6. Download `trajectory.csv`, `pointcloud.ply`, and `result.json`.
 
-In the browser:
-
-1. Choose the video.
-2. Leave **Approximate from field of view** selected if no calibration is available; 65° is the default estimate.
-3. Select **Run reconstruction**.
-4. Confirm that the job succeeds, landmarks and the path appear, measured metrics are populated, and all downloads work.
-
-For a scripted HTTP smoke test:
+Scripted HTTP smoke test:
 
 ```bash
-cd /teamspace/studios/this_studio/monocular-sparse-slam-source/monocular-sparse-slam
+cd /teamspace/studios/this_studio/Monocular-Sparse-SLAM
 export EXECUTION_TARGET=lightning
 export ENABLE_SLAM=true
 python scripts/http_smoke.py --video /path/to/test-video.mp4
 ```
 
-## 8. Measure processing time
+## 9. Performance benchmark
 
-Run at least five repetitions on the same approximately ten-second clip:
+Run at least five repetitions using the same approximately ten-second clip:
 
 ```bash
-cd /teamspace/studios/this_studio/monocular-sparse-slam-source/monocular-sparse-slam
+cd /teamspace/studios/this_studio/Monocular-Sparse-SLAM
 export EXECUTION_TARGET=lightning
 export ENABLE_SLAM=true
 python scripts/benchmark.py \
@@ -164,34 +191,34 @@ python scripts/benchmark.py \
   --runs 5
 ```
 
-The script writes raw results and environment details under `benchmarks/runs/<UTC-date>/`. Copy the accepted environment and timing summary into `benchmarks/benchmark_results.md`. Use `--official` only from a clean committed checkout with an input duration accepted by the script.
+Generated evidence is stored under `benchmarks/runs/<UTC-date>/`. Transfer the accepted environment and result summary to [../benchmarks/benchmark_results.md](../benchmarks/benchmark_results.md). Use `--official` only with a clean committed checkout and an input duration accepted by the benchmark script.
 
-## 9. Restart after the Studio sleeps
+## 10. Restart procedure
 
-Installation usually persists, so start the services again without repeating setup.
+Installation artifacts normally persist when the Studio sleeps. Restart the services without repeating setup.
 
 Backend terminal:
 
 ```bash
-cd /teamspace/studios/this_studio/monocular-sparse-slam-source/monocular-sparse-slam/backend
+cd /teamspace/studios/this_studio/Monocular-Sparse-SLAM/backend
 ENABLE_SLAM=true bash run-lightning.sh
 ```
 
 Frontend terminal:
 
 ```bash
-cd /teamspace/studios/this_studio/monocular-sparse-slam-source/monocular-sparse-slam/frontend
+cd /teamspace/studios/this_studio/Monocular-Sparse-SLAM/frontend
 bash run-lightning.sh
 ```
 
-Repeat the local and public health checks. In-progress jobs do not survive a stopped Studio.
+Repeat both local health checks and the public health check. In-progress jobs do not survive a stopped Studio.
 
-## 10. Optional combined launcher
+## 11. Optional combined workflow
 
-The folder-specific workflow above is recommended because it makes failures easier to identify. The project also provides combined wrappers from the project root:
+The folder-specific workflow is preferred for troubleshooting. Combined wrappers are also available from the project root:
 
 ```bash
-cd /teamspace/studios/this_studio/monocular-sparse-slam-source/monocular-sparse-slam
+cd /teamspace/studios/this_studio/Monocular-Sparse-SLAM
 BUILD_JOBS=2 bash lightning/setup.sh
 ENABLE_SLAM=true bash lightning/run.sh
 ```
@@ -200,23 +227,25 @@ Do not use the combined launcher while either service is already running.
 
 ## Troubleshooting
 
-- **`Could NOT find OpenGL`:** use the current project files and rerun backend setup. `libgl1-mesa-dev` is included for g2o's CMake dependency; it does not enable the graphical viewer.
-- **`Venv creation is not allowed`:** use the current scripts. They install Python packages into Lightning's existing Conda environment and never call `python -m venv`.
-- **`Missing script: build:hosted`:** synchronize the current `frontend/package.json`, `frontend/vite.config.ts`, `frontend/public-hosted/app-config.json`, and Lightning scripts. The old source bundle does not contain later hosting changes.
-- **Port 8000 or 5173 already in use:** stop the older Assignment 2 process and rerun the service on its documented port.
-- **Frontend opens but says the engine is unavailable:** run both local curl commands, check that the backend was started with `ENABLE_SLAM=true`, and inspect the backend terminal.
-- **Public URL returns 502:** wake the Studio, restart both services, verify local health, and confirm port 5173 visibility.
-- **Runner or vocabulary missing:** rerun `BUILD_JOBS=2 bash setup-lightning.sh` from `backend/` and keep the first failing command/output.
-- **Native build is killed:** retry with `BUILD_JOBS=1`; if it still fails, use a Studio with more memory.
-- **Reconstruction fails or creates few points:** try a shorter, sharper clip with more texture and translational camera motion; camera input quality is often the cause.
+| Symptom | Resolution |
+|---|---|
+| `Could NOT find OpenGL` | Use the current setup scripts; `libgl1-mesa-dev` supplies g2o's exported CMake dependency while the viewer remains disabled |
+| `Venv creation is not allowed` | Use the current Lightning scripts, which install into the existing Conda environment |
+| `Missing script: build:hosted` | Synchronize the current frontend `package.json`, Vite configuration, hosted app config, and deployment scripts |
+| Port 8000 or 5173 is occupied | Stop the older Assignment 2 process and restart the service on its documented port |
+| Frontend reports engine unavailable | Verify both local health URLs and confirm the backend was started with `ENABLE_SLAM=true` |
+| Public URL returns 502 | Wake the Studio, restart both services, verify local health, and confirm public visibility for 5173 |
+| Runner or vocabulary is missing | Rerun backend setup and retain the first failing command/output |
+| Native compilation is killed | Retry with `BUILD_JOBS=1` or use a Studio with more memory |
+| Reconstruction produces few points | Use a sharper clip with stronger texture and translational motion |
 
-## Final Lightning submission checklist
+## Submission acceptance checklist
 
-- [ ] Backend direct health is healthy.
+- [ ] Direct backend health is healthy.
 - [ ] Frontend-proxied health is healthy.
-- [ ] Public 5173 URL opens from an incognito browser or another network.
+- [ ] Public URL opens from a private browser or separate network.
 - [ ] Public `/api/health` is healthy.
-- [ ] A real video reconstruction completes and produces visible geometry.
-- [ ] CSV, PLY, and JSON downloads work.
-- [ ] Five-run processing measurements and Studio machine details are recorded.
-- [ ] The Studio remains available for the evaluator or restart instructions are provided.
+- [ ] A real video produces visible landmarks and a trajectory.
+- [ ] CSV, PLY, and JSON artifacts download successfully.
+- [ ] Five-run timing and Studio machine details are recorded.
+- [ ] The Studio will remain available to the evaluator, or restart instructions are supplied.
