@@ -1,0 +1,173 @@
+diff --git a/src/stella_vslam/global_optimization_module.cc b/src/stella_vslam/global_optimization_module.cc
+index c188e91..b27ea9a 100644
+--- a/src/stella_vslam/global_optimization_module.cc
++++ b/src/stella_vslam/global_optimization_module.cc
+@@ -125,6 +125,10 @@ void global_optimization_module::run() {
+     is_terminated_ = false;
+ 
+     while (true) {
++        {
++            std::lock_guard<std::mutex> lock(mtx_keyfrm_queue_);
++            work_active_ = false;
++        }
+         std::this_thread::sleep_for(std::chrono::milliseconds(5));
+ 
+         // check if termination is requested
+@@ -166,6 +170,7 @@ void global_optimization_module::run() {
+             std::lock_guard<std::mutex> lock(mtx_keyfrm_queue_);
+             cur_keyfrm_ = keyfrms_queue_.front();
+             keyfrms_queue_.pop_front();
++            work_active_ = true;
+         }
+ 
+         {
+@@ -199,6 +204,11 @@ void global_optimization_module::run() {
+     spdlog::info("terminate global optimization module");
+ }
+ 
++bool global_optimization_module::work_is_idle() const {
++    std::lock_guard<std::mutex> lock(mtx_keyfrm_queue_);
++    return keyfrms_queue_.empty() && !work_active_ && !offline_ba_active_;
++}
++
+ void global_optimization_module::queue_keyframe(const std::shared_ptr<data::keyframe>& keyfrm) {
+     std::lock_guard<std::mutex> lock(mtx_keyfrm_queue_);
+     keyfrms_queue_.push_back(keyfrm);
+@@ -299,7 +309,16 @@ void global_optimization_module::correct_loop() {
+         thread_for_loop_BA_.reset(nullptr);
+     }
+     SPDLOG_TRACE("global_optimization_module: launch loop BA");
+-    thread_for_loop_BA_ = std::unique_ptr<std::thread>(new std::thread(&module::loop_bundle_adjuster::optimize, loop_bundle_adjuster_.get(), cur_keyfrm_));
++    {
++        std::lock_guard<std::mutex> lock(mtx_keyfrm_queue_);
++        offline_ba_active_ = true;
++    }
++    auto offline_keyframe = cur_keyfrm_;
++    thread_for_loop_BA_ = std::unique_ptr<std::thread>(new std::thread([this, offline_keyframe]() {
++        loop_bundle_adjuster_->optimize(offline_keyframe);
++        std::lock_guard<std::mutex> lock(mtx_keyfrm_queue_);
++        offline_ba_active_ = false;
++    }));
+ 
+     // 6. post-processing
+ 
+diff --git a/src/stella_vslam/global_optimization_module.h b/src/stella_vslam/global_optimization_module.h
+index eb4ede2..32e73b7 100644
+--- a/src/stella_vslam/global_optimization_module.h
++++ b/src/stella_vslam/global_optimization_module.h
+@@ -62,6 +62,8 @@ public:
+     //! Run main loop of the global optimization module
+     void run();
+ 
++    bool work_is_idle() const;
++
+     //! Queue a keyframe to the BoW database
+     void queue_keyframe(const std::shared_ptr<data::keyframe>& keyfrm);
+ 
+@@ -111,6 +113,9 @@ public:
+     bool request_loop_closure(unsigned int keyfrm1_id, unsigned int keyfrm2_id);
+ 
+ private:
++    // Guarded by mtx_keyfrm_queue_. Covers detection and correction.
++    bool work_active_ = false;
++    bool offline_ba_active_ = false;
+     //-----------------------------------------
+     // main process
+ 
+diff --git a/src/stella_vslam/mapping_module.cc b/src/stella_vslam/mapping_module.cc
+index 57fea87..07dfbc8 100644
+--- a/src/stella_vslam/mapping_module.cc
++++ b/src/stella_vslam/mapping_module.cc
+@@ -113,6 +113,10 @@ void mapping_module::run() {
+         if (global_optimizer_ && !cur_keyfrm_->graph_node_->is_spanning_root()) {
+             global_optimizer_->queue_keyframe(cur_keyfrm_);
+         }
++        {
++            std::lock_guard<std::mutex> lock(mtx_keyfrm_queue_);
++            work_active_ = false;
++        }
+     }
+ 
+     spdlog::info("terminate mapping module");
+@@ -126,6 +130,11 @@ std::shared_future<void> mapping_module::async_add_keyframe(const std::shared_pt
+     return promise_add_keyfrm_queue_.back().get_future().share();
+ }
+ 
++bool mapping_module::work_is_idle() const {
++    std::lock_guard<std::mutex> lock(mtx_keyfrm_queue_);
++    return keyfrms_queue_.empty() && !work_active_;
++}
++
+ unsigned int mapping_module::get_num_queued_keyframes() const {
+     std::lock_guard<std::mutex> lock(mtx_keyfrm_queue_);
+     return keyfrms_queue_.size();
+@@ -152,6 +161,7 @@ void mapping_module::mapping_with_new_keyframe() {
+         // dequeue -> cur_keyfrm_
+         cur_keyfrm_ = keyfrms_queue_.front();
+         keyfrms_queue_.pop_front();
++        work_active_ = true;
+     }
+ 
+     SPDLOG_TRACE("mapping_module: current keyframe is {}", cur_keyfrm_->id_);
+diff --git a/src/stella_vslam/mapping_module.h b/src/stella_vslam/mapping_module.h
+index 2df2c37..a548866 100644
+--- a/src/stella_vslam/mapping_module.h
++++ b/src/stella_vslam/mapping_module.h
+@@ -50,6 +50,8 @@ public:
+     //! Run main loop of the mapping module
+     void run();
+ 
++    bool work_is_idle() const;
++
+     //! Queue a keyframe to process the mapping
+     std::shared_future<void> async_add_keyframe(const std::shared_ptr<data::keyframe>& keyfrm);
+ 
+@@ -100,6 +102,8 @@ public:
+     void abort_local_BA();
+ 
+ private:
++    // Guarded by mtx_keyfrm_queue_. Remains true until global queue handoff.
++    bool work_active_ = false;
+     //-----------------------------------------
+     // main process
+ 
+diff --git a/src/stella_vslam/system.cc b/src/stella_vslam/system.cc
+index 25f623a..b0025ce 100644
+--- a/src/stella_vslam/system.cc
++++ b/src/stella_vslam/system.cc
+@@ -210,6 +210,21 @@ void system::startup(const bool need_initialize) {
+     }
+ }
+ 
++bool system::wait_for_pending_work(double timeout_seconds) const {
++    const auto deadline = std::chrono::steady_clock::now()
++        + std::chrono::duration<double>(timeout_seconds);
++    do {
++        if (mapper_->work_is_idle()
++            && (!global_optimizer_ || global_optimizer_->work_is_idle())
++            && !loop_BA_is_running()) {
++            return true;
++        }
++        // Synchronization wait, never a playback/frame-rate delay.
++        std::this_thread::sleep_for(std::chrono::milliseconds(1));
++    } while (std::chrono::steady_clock::now() < deadline);
++    return false;
++}
++
+ void system::shutdown() {
+     // terminate the other threads
+     if (global_optimizer_) {
+diff --git a/src/stella_vslam/system.h b/src/stella_vslam/system.h
+index 33d8734..1a9109d 100644
+--- a/src/stella_vslam/system.h
++++ b/src/stella_vslam/system.h
+@@ -70,6 +70,9 @@ public:
+     //! Shutdown the SLAM system
+     void shutdown();
+ 
++    // Offline runner only: call after the final frame feed has returned.
++    bool wait_for_pending_work(double timeout_seconds) const;
++
+     //-----------------------------------------
+     // data I/O
+ 

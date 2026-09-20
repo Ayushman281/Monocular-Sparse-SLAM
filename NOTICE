@@ -1,0 +1,17 @@
+Monocular RGB Sparse Point Cloud SLAM — Assignment 2
+
+Original application code is distributed under LICENSE (MIT).
+This does not relicense stella_vslam or its dependencies.
+
+stella_vslam 0.7.0 derives from OpenVSLAM, with original work by Shinya Sumikura,
+Mikiya Shibuya and Ken Sakurada/AIST and subsequent stella-cv contributors.
+Its original/fork BSD notices are retained under third_party/licenses/.
+The offline completion patch is documented under slam/patches/.
+
+FBoW and the pinned ORB vocabulary include Rafael Muñoz-Salinas's MIT notice.
+g2o contains components with distinct BSD/LGPL/GPL terms; the build uses shared
+libraries and retains upstream notices. Distribution-provided dependencies
+retain their package copyright files. See THIRD_PARTY.md for exact pins,
+additional notices and pending binary-distribution verification.
+
+No third-party neural checkpoint is used. No training is performed.

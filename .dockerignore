@@ -1,0 +1,12 @@
+.git
+.cache
+.venv
+.local
+**/node_modules
+**/dist
+**/__pycache__
+build
+data
+artifacts
+.env
+*.zip

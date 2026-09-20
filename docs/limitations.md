@@ -1,0 +1,15 @@
+# Known limitations and improvements
+
+The native build and actual algorithm outputs are unverified on a hosted machine. There is no demonstrated performance, ATE/RPE, loop-closure video or AWS URL yet. Source inspection and browser preview cannot establish any of those outcomes.
+
+Monocular output has unknown global scale. Pure rotation, insufficient parallax, bad intrinsics, textureless or repeated surfaces, dynamic objects, abrupt camera cuts, blur, rolling shutter, zoom and electronic stabilization can cause failure or drift. Calibration assumes fixed intrinsics and the upright original video geometry. An arbitrary uncalibrated evaluator clip uses a FOV approximation, which may not be adequate. Fisheye, anamorphic pixels and stereo/IMU are not supported.
+
+The normalized lossless intermediate adds decode/encode and disk/memory cost. Benchmark it before replacing it with streaming decode. Standalone `slam_runner` expects the already normalized CFR dimensions in its YAML; use `scripts/run_video.py` for arbitrary original videos. Source timestamps become CFR sample timestamps starting at zero; frame-index-based timestamps do not preserve arbitrary original presentation timestamps. Original duration/FPS remain in metadata. Small dimension rounding can introduce a subpixel anisotropic resize; both intrinsic axes are scaled accordingly.
+
+The map is sparse geometry, not a mesh or photorealistic model. Colors are visualization colors, not recovered surface RGB. Up to 10,000 points are displayed; the complete filtered cloud is in PLY. Filtering rejects nonfinite or weak landmarks but does not remove all geometric outliers. Viewer bounds can be dominated by extreme surviving points. Multiple separate map components fail acceptance rather than being overlaid as one trajectory. Frame gaps are visible as disconnected trajectory segments.
+
+Loop closure can be enabled without being detected. `loop_edges` measures unique retained graph connections; it is not an event history. No invented point set or fabricated metric is returned when the native runner fails. Surviving keyframe count and exported frame count may differ because of culling, initialization or lost tracking.
+
+One worker/process and a default single active job suit an assessment. There is no authentication, durable database or distributed queue. Job IDs permit anyone who knows them to access results. A page reload loses its in-page pending-job handle; server restarts lose lookup state. Old completed artifacts may be evicted before TTL to bound storage. Keep a downloaded copy of desired results. Abnormal machine termination can defer video cleanup until restart and TTL expiry.
+
+Future improvements should follow evidence: reduce measured preprocessing/vocabulary overhead, expose real per-frame progress and loop events, add keyframe frustums/2D projections, test additional calibration models, evaluate Sim(3)-aligned ATE/RPE, add cancellation, or add durable jobs when multi-user demand justifies it. Recovering metric scale or adding IMU is a significant sensor/model change requiring fresh calibration and validation, not a UI toggle.
