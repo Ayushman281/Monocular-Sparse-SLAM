@@ -1,20 +1,12 @@
-# Assignment 2 Benchmark Record
+# Assignment 2 Performance Measurement
 
-This document is the authoritative location for measured processing time and test-environment evidence. It separates verified observations from fields that still require runtime capture.
+Assignment 2 requires measured processing time and a description of the test environment. This document defines the measurement procedure and the information that must accompany a reported result.
 
-## Measurement status
+## Environment information available from installation logs
 
-The available installation logs identify several toolchain versions but do not contain a completed five-run video-processing benchmark. Processing-time claims therefore remain unverified until the generated benchmark evidence is entered below.
-
-## Test environment
-
-| Field | Recorded value |
+| Component | Observed value |
 |---|---|
 | Platform | Lightning AI Studio |
-| Benchmark date (UTC) | Pending |
-| Studio machine type | Pending |
-| CPU model / vCPUs / RAM | Pending |
-| Operating system | Pending |
 | Python | 3.12, Lightning `cloudspace` Conda environment |
 | Node.js / npm | 22.14.0 / 10.9.2 |
 | CMake | 3.28 |
@@ -22,19 +14,10 @@ The available installation logs identify several toolchain versions but do not c
 | OpenMP | 4.5 |
 | spdlog | 1.12.0 |
 | SLAM engine | stella_vslam 0.7.0 at `525231147319bcd31242f981078c36d9272727b4` plus `offline-drain.patch` |
-| Application commit | Pending |
 
-## Input and processing configuration
+## Measurement command
 
-| Field | Recorded value |
-|---|---|
-| Input filename / SHA-256 | Pending |
-| Duration / resolution / source FPS | Pending |
-| Camera calibration mode | Pending |
-| Processing width / FPS | Pending |
-| ORB configuration / OpenMP threads | Pending |
-
-## Benchmark command
+Run the following command on the same Lightning Studio as the backend, using an approximately ten-second monocular RGB video:
 
 ```bash
 cd /teamspace/studios/this_studio/Monocular-Sparse-SLAM
@@ -47,25 +30,20 @@ python scripts/benchmark.py \
 
 Use `--official` only from a clean committed checkout with an input duration accepted by the benchmark script.
 
-## Per-run results
+## Required result fields
 
-| Run | Server processing | Observed ready | Native SLAM | RTF | Tracked / processed | Keyframes | Map points | Loop edges | Result |
-|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
-| 1 | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
-| 2 | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
-| 3 | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
-| 4 | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
-| 5 | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+A submitted measurement should include:
 
-## Summary
+- benchmark date and application commit;
+- Studio machine type, CPU model, vCPU count, RAM, and operating system;
+- input SHA-256, duration, resolution, and source frame rate;
+- camera mode, processing resolution/FPS, ORB settings, and OpenMP thread count;
+- all per-run server, observed-ready, and native-SLAM times;
+- real-time factor, tracking coverage, keyframes, map points, and loop edges; and
+- mean, median, minimum, and maximum processing time.
 
-| Metric | Result |
-|---|---|
-| Successful runs | Pending |
-| Server time: mean / median / minimum / maximum | Pending |
-| Mean observed-ready time | Pending |
-| Mean real-time factor | Pending |
-| All required runs at or below 10 seconds | **Unverified** |
-| Useful reconstruction in every accepted run | **Unverified** |
+The benchmark script stores raw run data, `environment.json`, and `summary.json` under `benchmarks/runs/<UTC-date>/`.
 
-The benchmark script stores raw results, `environment.json`, and `summary.json` under `benchmarks/runs/<UTC-date>/`. Retain failed and slow runs, bind results to the exact source revision and input hash, and exclude private video content from published evidence.
+## Result status
+
+No completed five-run benchmark output was supplied for inclusion in this repository. Consequently, the submission does not state a measured processing-time value or claim that a timing threshold has passed. This avoids presenting an estimated or fabricated result as measured evidence.

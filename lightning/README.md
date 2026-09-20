@@ -238,14 +238,3 @@ Do not use the combined launcher while either service is already running.
 | Runner or vocabulary is missing | Rerun backend setup and retain the first failing command/output |
 | Native compilation is killed | Retry with `BUILD_JOBS=1` or use a Studio with more memory |
 | Reconstruction produces few points | Use a sharper clip with stronger texture and translational motion |
-
-## Submission acceptance checklist
-
-- [ ] Direct backend health is healthy.
-- [ ] Frontend-proxied health is healthy.
-- [ ] Public URL opens from a private browser or separate network.
-- [ ] Public `/api/health` is healthy.
-- [ ] A real video produces visible landmarks and a trajectory.
-- [ ] CSV, PLY, and JSON artifacts download successfully.
-- [ ] Five-run timing and Studio machine details are recorded.
-- [ ] The Studio will remain available to the evaluator, or restart instructions are supplied.

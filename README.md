@@ -159,8 +159,6 @@ Each successful job reports server processing time, native SLAM time, and real-t
 | OpenMP | 4.5 |
 | spdlog | 1.12.0 |
 | Native engine | stella_vslam 0.7.0, pinned commit listed above |
-| Studio machine / CPU / RAM | Pending benchmark capture |
-| Five-run processing result | Pending benchmark capture |
 
 Benchmark command:
 
@@ -173,7 +171,7 @@ python scripts/benchmark.py \
   --runs 5
 ```
 
-No performance threshold is considered verified until the repeated results and machine details are recorded in [benchmarks/benchmark_results.md](benchmarks/benchmark_results.md). Timing boundaries and acceptance rules are defined in [docs/performance.md](docs/performance.md).
+The repository does not include a completed five-run output because no benchmark result was supplied for documentation. A processing-time claim must be added only after executing the command above on the deployed Studio. The reporting format is described in [benchmarks/benchmark_results.md](benchmarks/benchmark_results.md), and timing boundaries are defined in [docs/performance.md](docs/performance.md).
 
 ## Known limitations and future work
 

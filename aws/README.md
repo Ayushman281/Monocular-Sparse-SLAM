@@ -209,18 +209,3 @@ In-memory jobs are lost on restart. Repeat health and real-video checks after an
 | Processing times out | Inspect preprocessing/native timing and resize the instance from measurement evidence |
 | Port 80 is unreachable | Check container health, security-group ingress, subnet routing, Internet gateway, and public addressing |
 | Build exhausts disk | Inspect Docker disk usage and EBS capacity before removing known unused artifacts |
-
-## Deployment evidence record
-
-| Field | Actual value |
-|---|---|
-| Deployment date and source revision | Pending |
-| AWS region / instance type / AMI | Pending |
-| vCPUs / RAM / EBS | Pending |
-| Docker and Compose versions | Pending |
-| Image IDs or digests | Pending |
-| Local health and real-video smoke test | Pending |
-| Five-run benchmark summary | Pending |
-| Public URL and external-network result | Pending |
-| HTTPS/domain status | Pending |
-| Shutdown and residual-cost check | Pending |
