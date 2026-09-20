@@ -4,7 +4,12 @@ This runbook describes deployment of the complete frontend and backend to a sing
 
 ## Deployment status
 
-The AWS configuration is included as a portable deployment option. It is not presented as an already completed AWS deployment. Region, instance type, costs, public URL, and performance must be recorded from the actual AWS environment.
+I have not deployed this project on AWS. The current working deployment is hosted
+on [Lightning AI](https://5173-01m2wsmqs3pv7fk47mnxtzqdr1.cloudspaces.litng.ai/).
+The AWS configuration is included as a portable future deployment option and is
+not presented as an already completed AWS deployment. Region, instance type,
+costs, public URL, and performance must be recorded from the actual AWS
+environment if that deployment path is used.
 
 ## Architecture
 

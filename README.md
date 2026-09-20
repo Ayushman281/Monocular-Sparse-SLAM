@@ -189,9 +189,21 @@ See [docs/limitations.md](docs/limitations.md) for additional detail.
 
 ## AI Usage
 
-I used ChatGPT with the **Astra 6** and **GPT 5.6 Sol** language models. Approximately **80% of the assignment code was AI-generated or AI-assisted**. AI support included requirements analysis, architecture proposals, native integration, FastAPI and React implementation, tests, deployment scripts, troubleshooting, and documentation.
+I used ChatGPT with the **Astra 6** and **GPT-5.6 Sol** language models. I estimate
+that approximately **80% of the assignment code was AI-generated or AI-assisted**;
+this is my personal estimate rather than a measured line-by-line attribution. AI
+support included requirements analysis, architecture proposals, native
+integration, FastAPI and React implementation, tests, deployment scripts,
+troubleshooting, and documentation.
 
-I reviewed and modified the implementation, ran the Lightning installation, interpreted native-build and hosting logs, changed backend hosting code and scripts, separated backend/frontend setup, and configured the two-service deployment. Significant recommendations were evaluated rather than accepted automatically. For example, I removed nested virtual-environment creation after Lightning rejected it, added the missing OpenGL development dependency from an observed CMake error, and rejected synthetic geometry or unverified performance claims.
+I reviewed and modified the implementation, ran the Lightning installation,
+interpreted native-build and hosting logs, changed backend hosting code and
+scripts, separated backend/frontend setup, and configured the two-service
+deployment. I evaluated ChatGPT's recommendations rather than accepting them
+automatically. For example, I removed nested virtual-environment creation after
+Lightning rejected it, added the missing OpenGL development dependency after an
+observed CMake error, and rejected synthetic geometry or unverified performance
+claims.
 
 I understand the submitted architecture and accept responsibility for the code and deployment. The full disclosure is available in [AI_USAGE.md](AI_USAGE.md).
 

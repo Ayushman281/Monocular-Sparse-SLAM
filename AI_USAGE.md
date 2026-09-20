@@ -2,11 +2,19 @@
 
 ## Tools used
 
-I used ChatGPT throughout this assignment with the **Astra 6** and **GPT 5.6 Sol** large language models. I did not use another AI development tool for this submission.
+I used ChatGPT throughout this assignment with the **Astra 6** and **GPT-5.6 Sol**
+large language models. I did not use another AI development tool for this
+submission. Both models were used across multiple development iterations. I did
+not maintain a model-by-model attribution log, so the recommendations below are
+attributed to ChatGPT rather than to one individual model.
 
 ## Extent of AI assistance
 
-Approximately **80% of my assignment code was generated or substantially assisted by AI**. This estimate includes application source, native-integration code, tests, configuration, deployment scripts, and documentation. I am stating this directly so that my use of AI is transparent.
+I estimate that approximately **80% of my assignment code was generated or
+substantially assisted by AI**. This is my personal estimate rather than a
+measured line-by-line attribution. It includes application source,
+native-integration code, tests, configuration, deployment scripts, and
+documentation. I am stating this directly so that my use of AI is transparent.
 
 AI assistance covered:
 
@@ -20,7 +28,7 @@ AI assistance covered:
 - troubleshooting errors from real Lightning logs; and
 - drafting and organizing the technical and submission documentation.
 
-## Human contribution and responsibility
+## My contribution and responsibility
 
 I did not write every line independently, but I reviewed and modified the project and developed a good understanding of its purpose, architecture, data flow, deployment process, and limitations. In particular, I:
 
@@ -31,9 +39,12 @@ I did not write every line independently, but I reviewed and modified the projec
 - required frontend and backend installation to be performed from their respective folders;
 - configured and checked the separate 8000/5173 service arrangement;
 - made decisions about the submitted deployment instructions; and
-- accepts responsibility for validating and explaining the final submission.
+- accept responsibility for validating and explaining the final submission.
 
 ## Significant recommendations adopted
+
+ChatGPT, through Astra 6 and GPT-5.6 Sol, proposed the following recommendations.
+I reviewed them, understood their tradeoffs, and adopted them in the project:
 
 - Separate performance-critical SLAM execution from HTTP orchestration.
 - Pin stella_vslam, g2o, FBoW, and the ORB vocabulary to exact revisions.
@@ -44,6 +55,9 @@ I did not write every line independently, but I reviewed and modified the projec
 - Report measured timing fields and retain raw benchmark failures instead of presenting synthetic success values.
 
 ## Recommendations rejected or modified
+
+I rejected or modified the following ChatGPT-generated recommendations after
+reviewing them against the real Lightning environment and project requirements:
 
 - **Nested Python virtual environment:** rejected after Lightning AI reported that Studios allow only the existing Conda environment. The scripts now use the active Python 3.11+ interpreter directly on Lightning.
 - **Incomplete native dependency list:** modified after the real CMake error showed that g2o's exported package required OpenGL/GLX development files. `libgl1-mesa-dev` was added while the graphical viewer remains disabled.
